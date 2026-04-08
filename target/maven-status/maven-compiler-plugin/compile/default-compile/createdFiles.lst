@@ -1,0 +1,6 @@
+com\example\websockettest\GameWebSocketHandler.class
+com\example\websockettest\GameLoopService.class
+com\example\websockettest\WebSocketConfig.class
+com\example\websockettest\GameState.class
+com\example\websockettest\GameConnection.class
+com\example\websockettest\WebsocketTestApplication.class

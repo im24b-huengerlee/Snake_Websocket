@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spring Boot WebSocket Game Loop</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        max-width: 900px;
+        margin: 32px auto;
+        padding: 0 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      button {
+        padding: 8px 12px;
+      }
+      #status {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+      #messages {
+        border: 1px solid #ddd; /* outline of the output area */
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 200px;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+      }
+      #playfield {
+        width: 600px;
+        height: 600px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        position: relative;
+        background-color: #fafafa;
+        background-image:
+          linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+          linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+        background-size: 30px 30px;
+      }
+      #dot {
+        width: 30px;
+        height: 30px;
+        border-radius: 4px; /* one-grid snake head (square-like) */
+        background: #1db954;
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Game WebSocket demo</h2>
+
+    <div class="row">
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+      <div id="status">Disconnected</div>
+    </div>
+
+    <div id="playfield">
+      <div id="dot"></div>
+    </div>
+
+    <div id="messages"></div>
+
+    <script>
+      const connectBtn = document.getElementById("connectBtn");
+      const disconnectBtn = document.getElementById("disconnectBtn");
+      const statusEl = document.getElementById("status");
+      const messagesEl = document.getElementById("messages");
+      const playfield = document.getElementById("playfield");
+      const dotEl = document.getElementById("dot");
+
+      let socket = null;
+      let gameOverShown = false;
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      function appendMessage(text) {
+        messagesEl.textContent += text + "\n";
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function renderState(jsonText) {
+        try {
+          const state = JSON.parse(jsonText);
+
+          if (typeof state.cellSize === "number") {
+            dotEl.style.width = `${state.cellSize}px`;
+            dotEl.style.height = `${state.cellSize}px`;
+            playfield.style.backgroundSize = `${state.cellSize}px ${state.cellSize}px`;
+          }
+          if (typeof state.gridWidth === "number" && typeof state.cellSize === "number") {
+            playfield.style.width = `${state.gridWidth * state.cellSize}px`;
+          }
+          if (typeof state.gridHeight === "number" && typeof state.cellSize === "number") {
+            playfield.style.height = `${state.gridHeight * state.cellSize}px`;
+          }
+
+          if (typeof state.x === "number" && typeof state.y === "number") {
+            dotEl.style.left = `${state.x}px`;
+            dotEl.style.top = `${state.y}px`;
+          }
+          if (state.gameOver) {
+            setStatus("Game Over - hit the wall");
+            if (!gameOverShown) {
+              appendMessage("GAME OVER");
+              gameOverShown = true;
+            }
+          } else {
+            appendMessage(`x=${state.x}, y=${state.y}, lastAction=${state.lastAction}`);
+          }
+        } catch (_err) {
+          appendMessage(jsonText);
+        }
+      }
+
+      connectBtn.addEventListener("click", () => {
+        setStatus("Connecting...");
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        socket = new WebSocket(`${protocol}://${window.location.host}/game`);
+
+        socket.addEventListener("open", () => {
+          setStatus("Connected. Use arrow keys to send actions.");
+          gameOverShown = false;
+          connectBtn.disabled = true;
+          disconnectBtn.disabled = false;
+        });
+
+        socket.addEventListener("message", (event) => {
+          // Server sends game state JSON every tick.
+          renderState(event.data);
+        });
+
+        socket.addEventListener("error", (err) => {
+          console.error("WebSocket error", err);
+          setStatus("Connection failed (see console)");
+        });
+
+        socket.addEventListener("close", () => {
+          setStatus("Disconnected");
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          socket = null;
+        });
+      });
+
+      disconnectBtn.addEventListener("click", () => {
+        if (socket) socket.close();
+        socket = null;
+        gameOverShown = false;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        setStatus("Disconnected");
+      });
+
+      // Log and send keyboard actions.
+      window.addEventListener("keydown", (event) => {
+        let action = null;
+        if (event.key === "ArrowLeft") action = "left";
+        if (event.key === "ArrowRight") action = "right";
+        if (event.key === "ArrowUp") action = "up";
+        if (event.key === "ArrowDown") action = "down";
+
+        if (!action) return;
+        event.preventDefault();
+        console.log(action);
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(action);
+        }
+      });
+    </script>
+  </body>
+</html>
+
