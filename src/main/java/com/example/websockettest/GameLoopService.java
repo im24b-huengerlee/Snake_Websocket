@@ -17,8 +17,8 @@ public class GameLoopService {
     this.webSocketHandler = webSocketHandler;
   }
 
-  // 1 second between updates (one grid move per tick).
-  @Scheduled(fixedRate = 1000)
+  // 0.2 second between ticks.
+  @Scheduled(fixedRate = 200)
   public void processGameTick() {
     Map<String, GameConnection> connections = webSocketHandler.getActiveConnections();
 

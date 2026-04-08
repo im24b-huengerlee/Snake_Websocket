@@ -1,5 +1,8 @@
 package com.example.websockettest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
@@ -11,6 +14,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 @Component
 public class GameWebSocketHandler extends TextWebSocketHandler {
   private final Map<String, GameConnection> activeConnections = new ConcurrentHashMap<>();
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) {
@@ -18,6 +22,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     GameConnection connection = new GameConnection(session, initialState);
     activeConnections.put(session.getId(), connection);
     System.out.println("Player connected: " + session.getId());
+    sendCurrentState(connection);
   }
 
   @Override
@@ -27,8 +32,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
       return;
     }
 
-    // Expected payload: "left", "right", "up", "down"
+    // Expected payload: "left", "right", "up", "down", "restart"
     String action = message.getPayload().trim().toLowerCase();
+    if ("restart".equals(action)) {
+      connection.resetState();
+      sendCurrentState(connection);
+      return;
+    }
     connection.getState().applyAction(action);
   }
 
@@ -40,6 +50,16 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
   public Map<String, GameConnection> getActiveConnections() {
     return activeConnections;
+  }
+
+  private void sendCurrentState(GameConnection connection) {
+    try {
+      connection.getSession().sendMessage(new TextMessage(objectMapper.writeValueAsString(connection.getState())));
+    } catch (JsonProcessingException e) {
+      System.err.println("Failed to serialize initial state");
+    } catch (IOException e) {
+      System.err.println("Failed to send initial state");
+    }
   }
 }
 

@@ -4,7 +4,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 public class GameConnection {
   private final WebSocketSession session;
-  private final GameState state;
+  private GameState state;
 
   public GameConnection(WebSocketSession session, GameState state) {
     this.session = session;
@@ -17,6 +17,10 @@ public class GameConnection {
 
   public GameState getState() {
     return state;
+  }
+
+  public void resetState() {
+    this.state = new GameState();
   }
 }
 
